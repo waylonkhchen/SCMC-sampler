@@ -10,8 +10,8 @@ from scipy.stats import norm
 from constraints import Constraint
 #from scipy import optimize
 
-file_path = '../example.txt'
-const = Constraint(file_path)
+#file_path = '../example.txt'
+#const = Constraint(file_path)
 
 def uniform_samples(n_dim, size_sample):
     return np.array([np.random.uniform(size = n_dim) for i in range(size_sample)])
@@ -192,7 +192,7 @@ def Metropolis(be, t, sample, proposal ,constraints_funcs,p):
     current = sample
     size_sample = len(current)
     rw_step = adaptive_step(current, t, p)
-    print(rw_step)
+#    print(rw_step)
     proposed = [ proposal(x, rw_step) for x in current ]
     log_acc = [ min( 0, log_accept(be, x, x_, constraints_funcs)  ) for x,x_ in zip(proposed, current)]
     acc = np.exp(log_acc)
@@ -205,7 +205,7 @@ def Metropolis(be, t, sample, proposal ,constraints_funcs,p):
     
 
 
-def scmc(n_dim, size_sample, beta_max, seq_size, p_beta=1,p_rw_step=0):
+def scmc(n_dim, size_sample, constraints_funcs, beta_max, seq_size, p_beta=1,p_rw_step=0, verbose=1):
     t = 0
     beta = [0]
     #Generate uniform samples in n_dim cube [0,1]^n_dim
@@ -214,21 +214,24 @@ def scmc(n_dim, size_sample, beta_max, seq_size, p_beta=1,p_rw_step=0):
     
 #    #initialize weights
 #    W = weights_initial(size_sample)
+    print('{} iterations in total.'.format(seq_size))
     
     while beta[t] < beta_max:
         t += 1
+        print('Running iteration {}...'.format(t))
         #assign next beta
 #        be = optimal_next_beta()
         be = beta_poly(t, seq_size, p_beta, beta_max )
         beta.append(be)
         
         #importance resampling
-        constraints_funcs = const.get_functions()
+#        constraints_funcs = const.get_functions()
         resample = importance_resampling(be , samples ,t, beta , constraints_funcs)
         
         #Random Walk using Markov Chain kernel
         new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p_rw_step)
         samples.append(new_sample)
+    print('Sequentially Constrained Monte Carlo Sampling completed.')
     return samples
     
     
