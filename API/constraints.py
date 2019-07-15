@@ -41,12 +41,19 @@ class Constraint():
         # Run through the rest of the lines and compile the constraints
         self.exprs = []
         self.exprs_algebraic = []
+        self.functions = []
         for i in range(2, len(lines)):
             # support comments in the first line
             if lines[i][0] == "#":
                 continue
             self.exprs.append(compile(lines[i], "<string>", "eval"))
-            self.exprs_algebraic.append(compile(lines[i].split(">=")[0].strip(),"<string>", "eval"))
+#            self.exprs_algebraic.append(compile(lines[i].split(">=")[0].strip(),"<string>", "eval"))
+
+            self.functions.append( 
+                    (lambda i:
+                    lambda x: eval(lines[i].split(">=")[0].strip())
+                    )(i) #include i into the context of the function
+                    )
         return
 
     def get_example(self):
@@ -56,7 +63,11 @@ class Constraint():
     def get_ndim(self):
         """Get the dimension of the space on which the constraints are defined"""
         return self.n_dim
-
+    
+##somehow this doesn't work
+    def get_functions(self):
+        return self.functions
+    
     def apply(self, x):
         """
         Apply the constraints to a vector, returning True only if all are satisfied
@@ -73,4 +84,4 @@ class Constraint():
         values=[]
         for g_i in self.exprs_algebraic:
             values.append(eval(g_i))
-        return values    
+        return values

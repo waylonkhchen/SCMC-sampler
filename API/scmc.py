@@ -7,9 +7,11 @@ Created on Fri Jul 12 12:56:28 2019
 """
 import numpy as np
 from scipy.stats import norm
+from constraints import Constraint
 #from scipy import optimize
 
-
+file_path = '../example.txt'
+const = Constraint(file_path)
 
 def uniform_samples(n_dim, size_sample):
     return np.array([np.random.uniform(size = n_dim) for i in range(size_sample)])
@@ -44,7 +46,8 @@ def ESS(importances, beta):
     
 
 def optimal_next_beta():
-    """return optimize.root_scalar(ESS(importances,beta), bracket = ,method=')
+    """
+    return optimize.root_scalar(ESS(importances,beta), bracket = ,method=')
     """
     pass
 
@@ -68,7 +71,7 @@ def beta_poly(t, seq_size, p, beta_max):
  
 
 #unnormalized importance weights
-def w( be, t, n, samples , constraints , beta):
+def log_w( be, t, n, samples , constraints_funcs , beta):
     """
     function of ``be",
     evaluate the umnormalized importance weights w^t_n point-wise
@@ -81,9 +84,9 @@ def w( be, t, n, samples , constraints , beta):
     samples: List, length t+1
         containing np.array of shape (size_sample, n_dim)
     
-    constraints: List, length n_constraint
-        containing function that evaluate the constraint at a given point record x
-        constraint is the algebraic part (g) of the expression: g >= 0
+    constraints_funcs: List, length n_constraint
+        containing function that evaluates the constraint at a given point record x
+        i.e. the algebraic part g(x) of the expression: g(x) >= 0
     
     beta: List, length t+1
         containing the past inverse temperature beta
@@ -96,60 +99,116 @@ def w( be, t, n, samples , constraints , beta):
         
     """
     
-    res = np.sum([norm.logcdf( be* constraint( samples[t-1][n])) for constraint in constraints] )
-    res -= np.sum( [norm.cdf( beta[t-1]* constraint( samples[t-1][n] ) ) for constraint in constraints])
-    return np.exp(res)
+    res = np.sum([norm.logcdf( be * g(samples[t-1][n])) for g in constraints_funcs] )
+    res -= np.sum( [norm.cdf( beta[t-1]* g( samples[t-1][n] ) ) for g in constraints_funcs])
+    return res
 
 
 ### testing w
 #t=1; n=0; n_dim=2
-#samples = [np.array([[.9,.6],[.5,.6],[.1,.6]])]
-#constraints = [lambda x: x[0]+x[1],lambda x: x[0]-x[1]]
+#samples = np.array([[[.9,.6],[.5,.6],[.1,.6]],
+#                    [[.1,.2],[.3,.4],[.5,.6]]])
+#constraints_funcs = [lambda x: x[0]+x[1],lambda x: x[0]-x[1]]
 #beta = [1]
 #
 #be=1;
-#print(w( t, n, samples , constraints , beta, be))
+#print(w( be, t, n, samples , constraints , beta))
 
     
     
-def importance_resampling(be , samples ,t, beta , constraints):
-    size_sample = samples[0].shape(0)
-    W = weights_initial(size_sample)
+def importance_resampling(be , samples ,t, beta , constraints_funcs):
+    """
+    Parameters
+    ----------
+    constraints_funcs: List, length n_constraint
+    containing function that evaluates the constraint at a given point record x
+    
+    
+    """
     sample = samples[t-1]
+    size_sample = len(sample)
+    W = weights_initial(size_sample)
+
     
-    imp_weights = np.array( [w( be, t, n, samples , constraints , beta) for n in range(size_sample) ])
-    W = W * imp_weights
+    imp_weights = np.array( [ log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    W = np.log(W) + imp_weights
     #normalize W
+    W = np.exp(W)
     W = W / np.sum(W)
+    return sample[ np.random.choice(a = size_sample, size = size_sample,p = W)]
+
+
+
+#Metropolis Random Walk
+def proposal(x, step):
+    """
+    random walk proposal
+    """
+    n_dim = len(x)
+    delta = np.random.normal(scale = step, size = n_dim) 
+    return x + delta
+
+
+
+#def w( be, t, n, samples , constraints_funcs , beta):
+def log_target(be, x, constraints_funcs):
+    """
+    log (phi(beta * g(x))
+    Parameters
+    ----------
+    x:
+        
     
-    return sample[np.random.choice(a = len(sample), size = len(sample),p = W)]
+    """
+    return np.sum([norm.logcdf( be * g(x)) for g in constraints_funcs] )
+
+def log_accept(be, x, x_, constraints_funcs):
+    return log_target(be, x, constraints_funcs ) - log_target(be, x_, constraints_funcs)
+    
+def adaptive_step(sample, t, p):
+    return np.var(sample, axis =0)/t**p
+
+def Metropolis(be, t, sample, proposal ,constraints_funcs,p):
+    current = sample
+    size_sample = len(current)
+    step = adaptive_step(current, t, p)
+    proposed = [ proposal(x, step) for x in current ]
+    log_acc = [ min( 0, log_accept(be, x, x_, constraints_funcs)  ) for x,x_ in zip(proposed, current)]
+    acc = np.exp(log_acc)
+    
+    p = np.random.uniform(size = size_sample)
+    new_sample = [proposed[i] if (p<acc)[i] else current[i] for i in range(size_sample)]
+    return np.array(new_sample)
+    
+    
+    
+
 
 def scmc(n_dim, size_sample, beta_max, seq_size, p=1):
     t = 0
     beta = [0]
     #Generate uniform samples in n_dim cube [0,1]^n_dim
     ##samples[t] = W^t_1:n , containing size_sample rows of point in n_dim space
-    samples = [uniform_samples(n_dim, size_sample)] 
-    W = weights_initial(size_sample)
-    #initialize weights
+    samples = [uniform_samples(n_dim, size_sample)]
     
-    
-
-    
+#    #initialize weights
+#    W = weights_initial(size_sample)
     
     while beta[t] < beta_max:
         t += 1
-        
-        #next beta
+        #assign next beta
 #        be = optimal_next_beta()
         be = beta_poly(t, seq_size, p, beta_max )
         beta.append(be)
         
-        #importance sampling
+        #importance resampling
+        constraints_funcs = const.get_functions()
+        resample = importance_resampling(be , samples ,t, beta , constraints_funcs)
         
-        
-        
-    
+        #Random Walk using Markov Chain kernel
+        new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p)
+        samples.append(new_sample)
+    return samples
     
     
     
