@@ -1,3 +1,5 @@
+from parsing_constraints import *
+
 class Constraint():
     """Constraints loaded from a file.
     
@@ -16,6 +18,8 @@ class Constraint():
     exprs_algebraic : List, len = number of constraints
         containing code objects that represents the algebraic expression before the inequality
         each element can be evaluated and return a float
+        
+    bounds: List
     
     
     Methods
@@ -59,7 +63,22 @@ class Constraint():
                     )
             self.exprs_string += ('\n'+lines[i])
             self.exprs_list.append(lines[i].strip())
+                    
+        self.bounds, self.exprs_list = self.constraints2bounds()
+        
+        #reassign self.functions to those that are non-trivial
+        self.functions = []
+        for line in self.exprs_list:
+            self.functions.append(
+                    (lambda line:
+                        lambda x: eval(line.split(">=")[0].strip())
+                        )(line)
+                                  )
+                    
+            
+        
         return
+
 
     def get_example(self):
         """Get the example feasible vector"""
@@ -87,6 +106,23 @@ class Constraint():
         return self.exprs_string
     def get_exprs_list(self):
         return self.exprs_list
+    
+#new method for alloy test set
+    def constraints2bounds(self):
+        """
+        """
+        exprs_list = self.get_exprs_list()
+        #separate constraints
+        simpl, compl = filter_simple_constraints(exprs_list)
+        
+        bounds = []
+        for expr  in simpl:
+            parsed = parsing_simpl(expr)
+            bounds.append(convert_parsed_to_bound(parsed))
+        return bounds,compl
+
+
+    
 #    def evaluate_constraints(self, x):
 #        """Evaluate each constraint at x"""
 #        values=[]

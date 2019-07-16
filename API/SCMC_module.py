@@ -13,10 +13,39 @@ import matplotlib.pyplot as plt
 
 #n_dim, size_sample, beta_max, seq_size, p_beta=1,p_rw_step=0
 class SCMC():
+    """Use sequentially constrained Monte Carlo method to sample given constrained domains uniformly
+    
+    Methods
+    -------
+    write_ouput:
+        write the final sample in given path
+        
+    get_correctness:
+        return the correctness of the final state
+        
+    get_history: 
+        return a List, the history all samples in the sequential diffusion process
+        
+    plot_results: 
+        scatter plot the results along two arbitrary axes
+        params
+        ------
+            comp1, int: first axis (h)                
+            comp2, int: second axis (v)        
+            n_iter, int: if want history instead of final state
+            
+    print_constraints:
+        print the original constraints
+    
+    
+        
+    
+    """
     
     def __init__(self, input_path, n_results, beta_max = 10**4, p_beta=1,p_rw_step=0, track_correctness=False):
         self.input_path = input_path
         self.constraints = Constraint(input_path)
+        
         constraints_funcs = self.constraints.get_functions()
         
         self.n_dim = self.constraints.get_ndim()
@@ -26,8 +55,9 @@ class SCMC():
         self.p_rw_step = p_rw_step 
         
         #call sampling method scmc
-        self.history, self.correctness = scmc(self.n_dim, self.n_results, constraints_funcs, beta_max, p_beta,p_rw_step,
-                            track_correctness=track_correctness,
+        self.history, self.correctness = scmc(self.n_dim, self.n_results, constraints_funcs, beta_max, self.constraints.bounds,
+                                              p_beta,p_rw_step,
+                                              track_correctness=track_correctness,
                             given_example = self.constraints.get_example())
         self.results = self.history[-1]
         
@@ -46,6 +76,9 @@ class SCMC():
         correctness = [self.constraints.apply(x) for x in self.results]
         correctness = sum(correctness) / self.n_results
         return correctness
+    
+    def get_history(self):
+        return self.history
     
     def get_results(self):
         """
@@ -69,3 +102,5 @@ class SCMC():
 
     def print_constraints(self):
         print(self.constraints.get_exprs_string())
+
+

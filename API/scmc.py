@@ -13,8 +13,9 @@ from scipy import optimize
 #file_path = '../example.txt'
 #const = Constraint(file_path)
 
-def uniform_samples(n_dim, size_sample):
-    return np.random.uniform(size = (size_sample, n_dim))
+#def uniform_samples(n_dim, size_sample):
+#    return np.random.uniform(size = (size_sample, n_dim))
+
 
 def weights_initial(size_sample):
     return np.ones(size_sample)/size_sample
@@ -267,25 +268,34 @@ def importance_resampling(be , samples ,t, beta , constraints_funcs):
 
 #Metropolis Random Walk
     
-def avoid_leakage_rewalk(x, delta, rw_step, interval=[0,1]):
+def avoid_leakage_rewalk(x, delta, rw_step, upper, lower):
     n_dim = len(x)
     for i in range(n_dim):
-        while (x[i]+delta[i] > interval[1] or x[i]+ delta[i]< interval[0] ):
+        while (x[i]+delta[i] > upper[i] or x[i]+ delta[i]< lower[i] ):
             delta[i] =  np.random.normal(scale = rw_step[i])
     return delta
 
-def avoid_leakage_rebound(x, delta, rw_step, interval=[0,1]):
+def avoid_leakage_rebound(x, delta, rw_step,  upper, lower):
     n_dim = len(x)
     for i in range(n_dim):
-        while(x[i]+delta[i] > interval[1] or x[i]+delta[i] < interval[0]):
-            if x[i]+delta[i] > interval[1]:
-                delta[i] =  2*(interval[1]-x[i]) -delta[i]
+        while(x[i]+delta[i] > upper[i] or x[i]+delta[i] < lower[i]):
+            #upper rebound
+            if x[i]+delta[i] > upper[i]:
+                delta[i] =  2*(upper[i]-x[i]) -delta[i]
         
-            if x[i]+delta[i] < interval[0] :
-                delta[i] =   2*(interval[0]-x[i]) -delta[i]
+            if x[i]+delta[i] < lower[i] :
+                delta[i] =   2*(lower[i]-x[i]) -delta[i]
+
+#        while(x[i]+delta[i] > interval[1] or x[i]+delta[i] < interval[0]):
+#            #upper rebound
+#            if x[i]+delta[i] > interval[1]:
+#                delta[i] =  2*(interval[1]-x[i]) -delta[i]
+#        
+#            if x[i]+delta[i] < interval[0] :
+#                delta[i] =   2*(interval[0]-x[i]) -delta[i]
     return delta
         
-def proposal(x, rw_step):
+def proposal(x, rw_step, upper, lower):
     """
     random walk proposal for each record in the sample
     """
@@ -294,8 +304,8 @@ def proposal(x, rw_step):
 #    xx = x + delta
     
     #avoid leakage
-#    delta = avoid_leakage_rewalk(x, delta, rw_step)
-    delta = avoid_leakage_rebound(x, delta, rw_step)
+#    delta = avoid_leakage_rewalk(x, delta, rw_step, upper, lower)
+    delta = avoid_leakage_rebound(x, delta, rw_step, upper, lower)
     x += delta
     return x
 
@@ -320,14 +330,14 @@ def adaptive_step(sample, t, p):
 
 
 
-def Metropolis(be, t, sample, proposal ,constraints_funcs,p):
+def Metropolis(be, t, sample, proposal ,constraints_funcs,p, upper, lower):
     
     current = sample
     size_sample = len(current)
     #assign adaptive stride based on current 
     rw_step = adaptive_step(current, t, p)
 
-    proposed = [ proposal(x, rw_step) for x in current ]
+    proposed = [ proposal(x, rw_step, upper, lower) for x in current ]
 ###
 ###work here for some adaptive algorithm that fix the good points in the random walk
 ###    
@@ -370,8 +380,26 @@ def get_count(sample, constraints_funcs):
     count = sum(count) 
     return count
 
+def upper_lower(n_dim, bounds):
+    """
+    n_dim: int,
+    bounds: List,
+        eg. [['+',0, -.5]] meaning x[0] has upper bound at .5
+    """
+    upper = np.ones(n_dim)
+    lower = np.zeros(n_dim)
+    if bounds != []:
+        for bound in bounds:
+            if bound[0] == '-':
+                if bound[2]>0:#consistency check, 0< bound[2]<1 must be true
+                    upper[bound[1]] = bound[2]
+            else:
+                if bound[2]<0:#consistency check
+                    lower[bound[1]] = -bound[2]
+    return upper, lower
 
-def initial_sampling(n_dim, size_sample, given_example):
+
+def initial_sampling(n_dim, size_sample, given_example, upper, lower):
     """
     Returns:
     --------
@@ -379,23 +407,25 @@ def initial_sampling(n_dim, size_sample, given_example):
         containing np array 
         
     """
-    if given_example is None:
-        samples = uniform_samples(n_dim, size_sample)
-    else:
-        samples =np.append( uniform_samples(n_dim, size_sample-1), [given_example], axis=0)
-    return samples
+    sample = np.random.uniform(low = lower,high =upper, size = (size_sample, n_dim))
+    if given_example is not None:
+        sample[0] = given_example
+    
+    return sample
 
 
 
 
-def scmc(n_dim, size_sample, constraints_funcs, beta_max, p_beta=1,p_rw_step=1, verbose=1, track_correctness=False, given_example = None):
+def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
+         p_beta=1,p_rw_step=1, verbose=1, track_correctness=True, given_example = None):
     
     t = 0
     beta = [0]
     
     #Generate uniform samples in n_dim cube [0,1]^n_dim
     samples=[]
-    samples.append(initial_sampling(n_dim, size_sample, given_example))
+    upper, lower = upper_lower(n_dim, bounds)
+    samples.append(initial_sampling(n_dim, size_sample, given_example, upper, lower))
     
     
     sample= samples[0]
@@ -414,7 +444,7 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, p_beta=1,p_rw_step=1, 
     while beta[t] < beta_max:
 
         if track_correctness:
-            print('t = {0:>8} ,beta={1:>8} ,correctness={2:.4f:>8} '.format(t ,beta[t], correctness_history[t]))
+            print('t = {:<8} ,beta={:>8} ,correctness={:.4f} '.format(t ,beta[t], correctness_history[t]))
         else:
             print('t = {} ,current beta is {} '.format(t ,beta[t]))
             
@@ -440,13 +470,13 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, p_beta=1,p_rw_step=1, 
         resample = importance_resampling(be , samples ,t, beta , constraints_funcs)
         
         #Random Walk using Markov Chain kernel
-        new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p_rw_step)
+        new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p_rw_step,upper, lower)
         samples.append(new_sample)
         if track_correctness:
             current_correctness = get_correctness(new_sample, constraints_funcs)
             correctness_history.append(current_correctness)
     
-    print('Sampling is complete. The final beta= {}'.format(be))
+    print('Sampling completed. The final beta {} is achieved.'.format(be))
 #    if track_correctness:
 #        return samples, 
     return samples, correctness_history

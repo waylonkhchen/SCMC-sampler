@@ -10,7 +10,7 @@ Created on Tue Jul 16 10:32:22 2019
 ##rx.findall("Some example: Jr. it. was - 0.23 between 2.3 and 42.31 seconds")
 
 import re
-from constraints import Constraint
+#from constraints import Constraint
 
 
 def get_simple_boundaries():
@@ -123,20 +123,20 @@ def convert_parsed_to_bound(simpl, var_name = "x"):
 #pattern = re.compile(r'\s+')
 #sentence = re.sub(pattern, '', sentence)
 
-#script
-def constraints2bounds(file_name = "../alloy.txt"):
-    """
-    """
-    cons1 = Constraint(file_name)
-    exprs_list = cons1.get_exprs_list()
-    #separate constraints
-    simpl, compl = filter_simple_constraints(exprs_list)
-    
-    bounds = []
-    for expr  in simpl:
-        parsed = parsing_simpl(expr)
-        bounds.append(convert_parsed_to_bound(parsed))
-    return bounds
+
+#def constraints2bounds(file_name = "../alloy.txt"):
+#    """
+#    """
+#    cons1 = Constraint(file_name)
+#    exprs_list = cons1.get_exprs_list()
+#    #separate constraints
+#    simpl, compl = filter_simple_constraints(exprs_list)
+#    
+#    bounds = []
+#    for expr  in simpl:
+#        parsed = parsing_simpl(expr)
+#        bounds.append(convert_parsed_to_bound(parsed))
+#    return bounds
 
 
 
@@ -145,58 +145,58 @@ def constraints2bounds(file_name = "../alloy.txt"):
 
 
 
-#get algebraic exprs
-expression = AA[3]
-a = expression.split(">=")[0].strip()
-print(a)
-
-#count number of x
-print(a.count("x"))
-
-#split with + and - but keep them
-b = list(filter(None,re.split("([\+\-])", a)))
-print(f"b: {b}")
-
-
-#combine 
-c=[]
-i=0
-while i < len(b):
-    if b[i] in "+-": 
-        print(i)
-        print(b[i] in "+-")
-        c.append(b[i]+b[i+1])
-        i+=2
-        continue
-    c.append(b[i])
-    i+=1
-    
-print(c)
-
-
-bound =0 
-for s in c:
-
-    #extract component index , i.e. the i of x_i
-    if "x" in s:
-        i_comp = int(re.findall(r'\d+', s)[0]) #i_comp is int, in range(n_dim)
-        x_sign = get_sign_str(s) # x_sign = '+' or '-'
-
-    else:
-    #        constant = re.findall(r"[-+]?\d*\.\d+|\d+",s)
-    #        print(constant)
-    #        constant = constant[0]
-    #        print(constant)
-    #        constant = constant.split()
-    #        print(constant)
-    #        constant = ''.join(constant)
-    #        constant = float(constant)
-        constant = float(re.findall(r'\d*\.\d+|\d+', s)[0])
-        sign = get_sign(s)
-        print(f"bound befor {bound}")
-        bound += sign*constant
-        print(f"bound after {bound}")
-
-        
-print([i_comp, x_sign, bound])
+##get algebraic exprs
+#expression = AA[3]
+#a = expression.split(">=")[0].strip()
+#print(a)
+#
+##count number of x
+#print(a.count("x"))
+#
+##split with + and - but keep them
+#b = list(filter(None,re.split("([\+\-])", a)))
+#print(f"b: {b}")
+#
+#
+##combine 
+#c=[]
+#i=0
+#while i < len(b):
+#    if b[i] in "+-": 
+#        print(i)
+#        print(b[i] in "+-")
+#        c.append(b[i]+b[i+1])
+#        i+=2
+#        continue
+#    c.append(b[i])
+#    i+=1
+#    
+#print(c)
+#
+#
+#bound =0 
+#for s in c:
+#
+#    #extract component index , i.e. the i of x_i
+#    if "x" in s:
+#        i_comp = int(re.findall(r'\d+', s)[0]) #i_comp is int, in range(n_dim)
+#        x_sign = get_sign_str(s) # x_sign = '+' or '-'
+#
+#    else:
+#    #        constant = re.findall(r"[-+]?\d*\.\d+|\d+",s)
+#    #        print(constant)
+#    #        constant = constant[0]
+#    #        print(constant)
+#    #        constant = constant.split()
+#    #        print(constant)
+#    #        constant = ''.join(constant)
+#    #        constant = float(constant)
+#        constant = float(re.findall(r'\d*\.\d+|\d+', s)[0])
+#        sign = get_sign(s)
+#        print(f"bound befor {bound}")
+#        bound += sign*constant
+#        print(f"bound after {bound}")
+#
+#        
+#print([i_comp, x_sign, bound])
 
