@@ -43,6 +43,8 @@ class Constraint():
 #        self.exprs_algebraic = []
         self.functions = []
         self.exprs_string = ""
+        self.exprs_list = []
+        
         for i in range(2, len(lines)):
             # support comments in the first line
             if lines[i][0] == "#":
@@ -56,6 +58,7 @@ class Constraint():
                      )(i) #include (lambda i: <expression>) (i) into the context of the function
                     )
             self.exprs_string += ('\n'+lines[i])
+            self.exprs_list.append(lines[i].strip())
         return
 
     def get_example(self):
@@ -82,6 +85,8 @@ class Constraint():
         return True  
     def get_exprs_string(self):
         return self.exprs_string
+    def get_exprs_list(self):
+        return self.exprs_list
 #    def evaluate_constraints(self, x):
 #        """Evaluate each constraint at x"""
 #        values=[]
