@@ -7,50 +7,172 @@ Created on Fri Jul 12 12:56:28 2019
 """
 import numpy as np
 from scipy.stats import norm
-from constraints import Constraint
-#from scipy import optimize
+from scipy import optimize
+
 
 #file_path = '../example.txt'
 #const = Constraint(file_path)
 
 def uniform_samples(n_dim, size_sample):
-    return np.array([np.random.uniform(size = n_dim) for i in range(size_sample)])
+    return np.random.uniform(size = (size_sample, n_dim))
 
 def weights_initial(size_sample):
     return np.ones(size_sample)/size_sample
 
 
 
-
-def ESS(importances, beta):
+#
+def ESS(be, t, samples , constraints_funcs , beta):
     """
-    return a function of that calculates Effective sample size(ESS) from
+    return a function of ``be" that calculates Effective sample size(ESS) from
     unnomalized importnace w
     
     Parameters
     ----------
-    w   : np.array, shape ( n_dim, 1 )
+    be: float,
+        the curent inverse temperature,
     
     Returns
     -------
     ESS :float
     """
-    pass
-## refer to sigma to define function from sum of an array
-#    funcs = [f for f in importances]
-#    def sigma(funcs,x): #sum of an array of functions
-#        return sum([f(x) for f in funcs]) 
-#    def w( t, n )
-    
-#    return (np.sum(w))**2 / np.sum(w**2)
-    
+    size_sample = len(samples[0])
+    w = np.exp([log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    ess =np.sum(w)**2/np.sum(w**2)
+    return ess
 
-def optimal_next_beta():
+def ESS_p(be, t, samples , constraints_funcs , beta):
+    """
+    first derivative of ESS(be)
+    
+    Parameters
+    ----------
+    be: float,
+        the curent inverse temperature,
+    
+    Returns
+    -------
+    ESS :float
+    """
+    size_sample = len(samples[0])
+    w = np.exp([log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    w_p = np.exp([log_w_p( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    
+    sum_w = np.sum(w)
+    sum_ww = np.sum(w**2)
+
+    ess_p =2* sum_w * np.sum(w_p)* sum_ww- 2* sum_w**2 * np.sum(w * w_p)
+    ess_p = ess_p/sum_ww**2
+    return ess_p
+
+
+
+
+def toms748(objective, bracket):
+    try:
+        sol = optimize.root_scalar(
+                objective,
+
+                    bracket = bracket,
+                    method='toms748')
+    except:
+#        if bracket[0]<1:
+#            return (bracket[0]+10**-4)*1.2
+        return bracket[1]
+    return sol.root
+
+#this solver wouldn't work...
+#def newton(objective, x0, fprime):
+#    try:
+#        sol = optimize.root_scalar(
+#                func = objective,
+#                x0 = x0,
+#                fprime = fprime,
+#                method='newton')
+#        return sol.root
+#    except:
+#        if x0 <1:
+#            try:
+#                sol = newton(objective, 1, fprime)
+#                return sol.root
+#            except:
+#                return x0*2
+#        else:
+#            sol = newton(objective, 1, fprime)
+#    return sol.root
+ 
+
+def find_root( objective, x0,fprime, bracket , geomspace, t):
+    """
+    Using toms748 method for root finding, which requires a bracket that contain the root.
+    The more precise precise the bracket is, the faster the convergence.
+    Therefore, I partition interval [0, beta_max] into geometric space of 15 partitions.
+    The root finding will scan in each partition sequentially
+    """
+#    interval = np.linspace(0, geomspace[0], 10)
+#    if bracket[0] < geomspace[0]:
+#        return interval[t]
+    i=0
+    while i < len(geomspace):
+        while bracket[0] < geomspace[i]:
+            return toms748(objective,bracket= [bracket[0], geomspace[i] ])
+        i+=1
+            
+    return toms748(objective,bracket= bracket )
+#    return newton(objective, x0, fprime)
+#    if method == 'toms748':
+#        res = toms748(objective,bracket)
+#        return res
+#    if method =='newton':
+#        res = newton(objective, x0, fprime)
+#        return res
+
+def optimal_next_beta( t, samples , constraints_funcs , beta, beta_max, a=5, n_partition=15):
     """
     return optimize.root_scalar(ESS(importances,beta), bracket = ,method=')
     """
-    pass
-
+    size_sample = len(samples[0])
+    
+    def objective(be):
+        return ESS(be, t, samples , constraints_funcs , beta)- size_sample/2
+    def fprime(be):
+        return ESS_p(be, t, samples , constraints_funcs , beta)
+    
+    res = find_root(objective,
+                    x0 =beta[t-1],
+                    fprime=fprime,
+                    bracket = [beta[t-1], beta_max],
+                    geomspace = np.geomspace(a, beta_max, n_partition),
+                    t=t)
+    return res
+###
+#    if method == 'toms748':
+#        try:
+#            sol = optimize.root_scalar(
+#                    objective,
+#    #                x0 = beta[t-1],
+#    #                x1 = beta[t-1]*1.5,
+#                    bracket = [beta[t-1], beta_max],
+#                    method='toms748')
+#        except:
+#            if beta[t-1]<1:
+#                return beta[t-1]*1.1
+#            return beta_max
+#    if method =='newton':
+#        try:
+#            sol = optimize.root_scalar(
+#                    func = objective,
+#                    x0 = beta[t-1],
+#                    fprime = fprime,
+#    #                x0 = beta[t-1],
+#
+#                    method='newton')
+#        except:
+#            if beta[t-1]<1:
+#                return beta[t-1]*1.1
+#            return beta_max        
+#    return sol.root
+    
 def beta_poly(t, seq_size, p, beta_max):
     """
     generate inv temperature beta with polynomial growth (\propto t^p)
@@ -73,8 +195,8 @@ def beta_poly(t, seq_size, p, beta_max):
 #unnormalized importance weights
 def log_w( be, t, n, samples , constraints_funcs , beta):
     """
-    function of ``be",
-    evaluate the umnormalized importance weights w^t_n point-wise
+    a scaler function of ``be",
+    evaluate the log of umnormalized importance weights w^t_n point-wise
     Parameters
     ----------
     t: int, iteration count
@@ -94,7 +216,7 @@ def log_w( be, t, n, samples , constraints_funcs , beta):
         
     Returns
     -------
-    float
+    float,
         
         
     """
@@ -102,6 +224,13 @@ def log_w( be, t, n, samples , constraints_funcs , beta):
     res -= np.sum( [norm.cdf( beta[t-1]* g( samples[t-1][n] ) ) for g in constraints_funcs])
     return res
 
+def log_w_p( be, t, n, samples , constraints_funcs , beta):
+    """
+    first derivative of w(be), for newton's method
+    """
+    res = np.sum([g(samples[t-1][n])* norm.logpdf( be * g(samples[t-1][n])) for g in constraints_funcs] )
+    res -= np.sum( [norm.cdf( beta[t-1]* g( samples[t-1][n] ) ) for g in constraints_funcs])
+    return res
 
 ### testing w
 #t=1; n=0; n_dim=2
@@ -117,6 +246,7 @@ def log_w( be, t, n, samples , constraints_funcs , beta):
     
 def importance_resampling(be , samples ,t, beta , constraints_funcs):
     """
+    
     Parameters
     ----------
     constraints_funcs: List, length n_constraint
@@ -126,10 +256,10 @@ def importance_resampling(be , samples ,t, beta , constraints_funcs):
     sample = samples[t-1]
     size_sample = len(sample)
     W = weights_initial(size_sample)
-
     
     imp_weights = np.array( [ log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
     W = np.log(W) + imp_weights
+
     #normalize W
     W = np.exp(W)
     W = W / np.sum(W)
@@ -188,51 +318,138 @@ def log_accept(be, x, x_, constraints_funcs):
 def adaptive_step(sample, t, p):
     return np.var(sample, axis =0)/t**p
 
+
+
 def Metropolis(be, t, sample, proposal ,constraints_funcs,p):
+    
     current = sample
     size_sample = len(current)
+    #assign adaptive stride based on current 
     rw_step = adaptive_step(current, t, p)
-#    print(rw_step)
+
     proposed = [ proposal(x, rw_step) for x in current ]
+###
+###work here for some adaptive algorithm that fix the good points in the random walk
+###    
     log_acc = [ min( 0, log_accept(be, x, x_, constraints_funcs)  ) for x,x_ in zip(proposed, current)]
     acc = np.exp(log_acc)
     
-    p = np.random.uniform(size = size_sample)
-    new_sample = [proposed[i] if (p<acc)[i] else current[i] for i in range(size_sample)]
+    q = np.random.uniform(size = size_sample)
+    new_sample = [proposed[i] if (q<acc)[i] else current[i] for i in range(size_sample)]
     return np.array(new_sample)
     
     
+
+
+
+def get_correctness(sample, constraints_funcs):
+    """
+    get correctness ratio
+    """
+    def is_correct(x):
+        for f in constraints_funcs:
+            if f(x) < 0:
+                return False
+        return True
     
+    correctness = [is_correct(x) for x in sample]
+    correctness = sum(correctness) / len(correctness)
+    return correctness
+
+def get_count(sample, constraints_funcs):
+    """
+    get correct count
+    """
+    def is_correct(x):
+        for f in constraints_funcs:
+            if f(x) < 0:
+                return False
+        return True
+    
+    count = [is_correct(x) for x in sample]
+    count = sum(count) 
+    return count
 
 
-def scmc(n_dim, size_sample, constraints_funcs, beta_max, seq_size, p_beta=1,p_rw_step=0, verbose=1):
+def initial_sampling(n_dim, size_sample, given_example):
+    """
+    Returns:
+    --------
+    samples, List
+        containing np array 
+        
+    """
+    if given_example is None:
+        samples = uniform_samples(n_dim, size_sample)
+    else:
+        samples =np.append( uniform_samples(n_dim, size_sample-1), [given_example], axis=0)
+    return samples
+
+
+
+
+def scmc(n_dim, size_sample, constraints_funcs, beta_max, p_beta=1,p_rw_step=1, verbose=1, track_correctness=False, given_example = None):
+    
     t = 0
     beta = [0]
+    
     #Generate uniform samples in n_dim cube [0,1]^n_dim
-    ##samples[t] = W^t_1:n , containing size_sample rows of point in n_dim space
-    samples = [uniform_samples(n_dim, size_sample)]
+    samples=[]
+    samples.append(initial_sampling(n_dim, size_sample, given_example))
     
-#    #initialize weights
-#    W = weights_initial(size_sample)
-    print('{} iterations in total.'.format(seq_size))
     
+    sample= samples[0]
+    correctness_history = []
+    current_correctness = get_correctness(sample, constraints_funcs)
+    correctness_history.append(current_correctness)
+    
+    
+    
+#    current_count = get_count(sample, constraints_funcs)
+#    if current_count <10:
+#        pass
+        
+
+    print('Sequentially constrained Monte Carlo sampler has started. The iteration terminates when beta > {}'.format(beta_max))
     while beta[t] < beta_max:
+
+        if track_correctness:
+            print('t = {0:>8} ,beta={1:>8} ,correctness={2:.4f:>8} '.format(t ,beta[t], correctness_history[t]))
+        else:
+            print('t = {} ,current beta is {} '.format(t ,beta[t]))
+            
         t += 1
-        print('Running iteration {}...'.format(t))
+        
+#        if current_correctness <0.01:
+#            #assign be
+#            be = beta[-1]*2 
+#            beta.append(be)
+#            #do not do importance resample
+#            new_sample = Metropolis(be, t, sample, proposal ,constraints_funcs ,p_rw_step)
+#            
+#        else:
         #assign next beta
-#        be = optimal_next_beta()
-        be = beta_poly(t, seq_size, p_beta, beta_max )
+        be = optimal_next_beta( t, samples , constraints_funcs , beta, beta_max)
+        #assign with linear
+#        be = beta_poly(t, seq_size, p_beta, beta_max )
         beta.append(be)
         
         #importance resampling
-#        constraints_funcs = const.get_functions()
+
+        
         resample = importance_resampling(be , samples ,t, beta , constraints_funcs)
         
         #Random Walk using Markov Chain kernel
         new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p_rw_step)
         samples.append(new_sample)
-    print('Sequentially Constrained Monte Carlo Sampling completed.')
-    return samples
+        if track_correctness:
+            current_correctness = get_correctness(new_sample, constraints_funcs)
+            correctness_history.append(current_correctness)
+    
+    print('Sampling is complete. The final beta= {}'.format(be))
+#    if track_correctness:
+#        return samples, 
+    return samples, correctness_history
     
     
     

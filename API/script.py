@@ -15,7 +15,10 @@ def main(argv):
     input_path, output_path = argv[0], argv[1]
     n_results = int(argv[2])
     
-    result = SCMC(input_path, n_results)
+    output_dir = "/".join(output_path.split("/")[:-1])
+    os.makedirs(output_dir, exist_ok=True)
+    
+    result = SCMC(input_path, n_results )
     result.write_output(output_path)
     output_path = os.path.abspath(output_path)
     print('The output file is saved at: \n {}'.format(output_path))

@@ -40,20 +40,22 @@ class Constraint():
 
         # Run through the rest of the lines and compile the constraints
         self.exprs = []
-        self.exprs_algebraic = []
+#        self.exprs_algebraic = []
         self.functions = []
+        self.exprs_string = ""
         for i in range(2, len(lines)):
             # support comments in the first line
             if lines[i][0] == "#":
                 continue
+
             self.exprs.append(compile(lines[i], "<string>", "eval"))
 #            self.exprs_algebraic.append(compile(lines[i].split(">=")[0].strip(),"<string>", "eval"))
-
             self.functions.append( 
                     (lambda i:
-                    lambda x: eval(lines[i].split(">=")[0].strip())
-                    )(i) #include i into the context of the function
+                      lambda x: eval(lines[i].split(">=")[0].strip())
+                     )(i) #include (lambda i: <expression>) (i) into the context of the function
                     )
+            self.exprs_string += ('\n'+lines[i])
         return
 
     def get_example(self):
@@ -78,10 +80,11 @@ class Constraint():
             if not eval(expr):
                 return False
         return True  
-    
-    def evaluate_constraints(self, x):
-        """Evaluate each constraint at x"""
-        values=[]
-        for g_i in self.exprs_algebraic:
-            values.append(eval(g_i))
-        return values
+    def get_exprs_string(self):
+        return self.exprs_string
+#    def evaluate_constraints(self, x):
+#        """Evaluate each constraint at x"""
+#        values=[]
+#        for g_i in self.exprs_algebraic:
+#            values.append(eval(g_i))
+#        return values
