@@ -99,6 +99,15 @@ class SCMC():
         plt.scatter(sample[:,comp1], sample[:,comp2])
         plt.xlim(0,1);
         plt.ylim(0,1);
+        
+    def plot_all_axis(self, n_iter =None):
+        
+        n_dim = self.n_dim
+        for i in range(n_dim ):
+            for j in range(i+1,n_dim):
+                self.plot_results(i,j,n_iter)
+                plt.xlabel('x_{}'.format(i));
+                plt.ylabel('x_{}'.format(j));
 
     def print_constraints(self):
         print(self.constraints.get_exprs_string())
