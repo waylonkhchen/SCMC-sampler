@@ -16,8 +16,10 @@ def main(argv):
     n_results = int(argv[2])
     
     output_dir = "/".join(output_path.split("/")[:-1])
-    os.makedirs(output_dir, exist_ok=True)
-    
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+    except:
+        pass
     result = SCMC(input_path, n_results,track_correctness=True )
     
     result.write_output(output_path)

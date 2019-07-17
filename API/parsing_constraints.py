@@ -13,11 +13,6 @@ import re
 #from constraints import Constraint
 
 
-def get_simple_boundaries():
-    pass
-
-
-
 def filter_simple_constraints(constraints_list, var_name = "x"):
     """separate simple contraints from complicated in the list of contraints 
     a constraint is simple when only one variable contained => can become sampling bounds
