@@ -13,11 +13,13 @@ from SCMC_module import SCMC
 
 
 #module testing
-input_path = '../example.txt'
+#input_path = '../example.txt'
+#input_path = '../formulation.txt'
+input_path = '../alloy.txt'
 
 n_results = 1000
 #run the sampler
-sampling1 = SCMC(input_path, n_results, track_correctness=True)
+sampling1 = SCMC(input_path, n_results, track_correctness=True,threshold=.999)
 
 
 #plot x[0], x[1]

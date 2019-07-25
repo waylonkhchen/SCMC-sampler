@@ -8,7 +8,7 @@ Created on Fri Jul 12 12:56:28 2019
 import numpy as np
 #from scipy.stats import norm
 from constraints import Constraint
-from scmc import scmc
+from scmc import scmc, init_sample
 import matplotlib.pyplot as plt
 
 #n_dim, size_sample, beta_max, seq_size, p_beta=1,p_rw_step=0
@@ -42,7 +42,7 @@ class SCMC():
     
     """
     
-    def __init__(self, input_path, n_results, beta_max = 10**4, p_beta=1,p_rw_step=0, track_correctness=False):
+    def __init__(self, input_path, n_results, beta_max = 10**4, p_beta=1,p_rw_step=0, track_correctness=False, threshold=.999):
         self.input_path = input_path
         self.constraints = Constraint(input_path)
         
@@ -55,11 +55,34 @@ class SCMC():
         self.p_rw_step = p_rw_step 
         
         #call sampling method scmc
-        self.history, self.correctness = scmc(self.n_dim, self.n_results, constraints_funcs, beta_max, self.constraints.bounds,
+        i_sample = init_sample(self.n_dim, self.n_results, self.constraints.bounds, self.constraints.get_example())
+        self.i_samples = []
+        self.i_samples.append(i_sample)
+        self.histories=[]
+        self.correctnesses=[]
+        print(len(constraints_funcs))
+        
+        for i in range(1, len(constraints_funcs)+1):
+            history, correctness =scmc(self.n_dim, self.n_results, self.i_samples[i-1] ,constraints_funcs[0:i], beta_max, self.constraints.bounds,
                                               p_beta,p_rw_step,
                                               track_correctness=track_correctness,
-                            given_example = self.constraints.get_example())
-        self.results = self.history[-1]
+                            given_example = self.constraints.get_example(), threshold = threshold )
+            self.i_samples.append(history[-1])
+            self.histories.append(history)
+            self.correctnesses.append(correctness)
+        self.results = self.histories[-1][-1]
+            
+        
+#        self.history, self.correctness = scmc(self.n_dim, self.n_results, i_sample ,constraints_funcs, beta_max, self.constraints.bounds,
+#                                              p_beta,p_rw_step,
+#                                              track_correctness=track_correctness,
+#                            given_example = self.constraints.get_example())
+#        self.results = self.history[-1]
+#        self.history, self.correctness = scmc(self.n_dim, self.n_results, constraints_funcs, beta_max, self.constraints.bounds,
+#                                              p_beta,p_rw_step,
+#                                              track_correctness=track_correctness,
+#                            given_example = self.constraints.get_example())
+#        self.results = self.history[-1]
         
 #        self.write_ouput(output_path)
 

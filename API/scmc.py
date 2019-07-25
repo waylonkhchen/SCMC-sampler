@@ -425,24 +425,28 @@ def initial_sampling(n_dim, size_sample, given_example, upper, lower):
     return sample
 
 
+def init_sample(n_dim, size_sample, bounds, given_example=None):
+    upper, lower = upper_lower(n_dim, bounds)
+    i_sample = initial_sampling(n_dim, size_sample, given_example, upper, lower)
+    return i_sample
 
-
-def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
+def scmc(n_dim, size_sample, i_sample, constraints_funcs, beta_max, bounds,
          p_beta=1,p_rw_step=1, verbose=1, track_correctness=True, given_example = None,
-         indicator_how = "Fermi-Dirac"):
+         indicator_how = "Fermi-Dirac", threshold=.990):
     
     t = 0
     beta = [0]
     
     #Generate uniform samples in n_dim cube [0,1]^n_dim
     samples=[]
+    samples.append(i_sample)
     upper, lower = upper_lower(n_dim, bounds)
-    samples.append(initial_sampling(n_dim, size_sample, given_example, upper, lower))
+
     
     #recor correctness
-    sample= samples[0]
+
     correctness_history = []
-    current_correctness = get_correctness(sample, constraints_funcs)
+    current_correctness = get_correctness(i_sample, constraints_funcs)
     correctness_history.append(current_correctness)
     
     
@@ -453,7 +457,7 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
         
 
     print('Sequentially constrained Monte Carlo sampler has started. The iteration terminates when beta > {}'.format(beta_max))
-    while beta[t] < beta_max:
+    while (beta[t] < beta_max and current_correctness < threshold) :
 
         if track_correctness:
             print('t = {:<5} ,beta={:7.2f} ,correctness={:.3f} '.format(t ,beta[t], correctness_history[t]))
@@ -488,13 +492,77 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
             current_correctness = get_correctness(new_sample, constraints_funcs)
             correctness_history.append(current_correctness)
     
-    print('Sampling completed. The final beta {} is achieved.'.format(be))
+    print('Sampling completed. The final beta {} is achieved.'.format(beta[-1]))
 #    if track_correctness:
 #        return samples, 
     return samples, correctness_history
     
-    
-    
 
-    
-    
+
+
+#def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
+#         p_beta=1,p_rw_step=1, verbose=1, track_correctness=True, given_example = None,
+#         indicator_how = "Fermi-Dirac"):
+#    
+#    t = 0
+#    beta = [0]
+#    
+#    #Generate uniform samples in n_dim cube [0,1]^n_dim
+#    samples=[]
+#    upper, lower = upper_lower(n_dim, bounds)
+#    samples.append(initial_sampling(n_dim, size_sample, given_example, upper, lower))
+#    
+#    #recor correctness
+#    sample= samples[0]
+#    correctness_history = []
+#    current_correctness = get_correctness(sample, constraints_funcs)
+#    correctness_history.append(current_correctness)
+#    
+#    
+#    
+##    current_count = get_count(sample, constraints_funcs)
+##    if current_count <10:
+##        pass
+#        
+#
+#    print('Sequentially constrained Monte Carlo sampler has started. The iteration terminates when beta > {}'.format(beta_max))
+#    while beta[t] < beta_max:
+#
+#        if track_correctness:
+#            print('t = {:<5} ,beta={:7.2f} ,correctness={:.3f} '.format(t ,beta[t], correctness_history[t]))
+#        else:
+#            print('t = {} ,current beta is {} '.format(t ,beta[t]))
+#            
+#        t += 1
+#        
+##        if current_correctness <0.01:
+##            #assign be
+##            be = beta[-1]*2 
+##            beta.append(be)
+##            #do not do importance resample
+##            new_sample = Metropolis(be, t, sample, proposal ,constraints_funcs ,p_rw_step)
+##            
+##        else:
+#        #assign next beta
+#        be = optimal_next_beta( t, samples , constraints_funcs , beta, beta_max, indicator_how)
+#        #assign with linear
+##        be = beta_poly(t, seq_size, p_beta, beta_max )
+#        beta.append(be)
+#        
+#        #importance resampling
+#
+#        
+#        resample = importance_resampling(be , samples ,t, beta , constraints_funcs,indicator_how)
+#        
+#        #Random Walk using Markov Chain kernel
+#        new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p_rw_step,upper, lower)
+#        samples.append(new_sample)
+#        if track_correctness:
+#            current_correctness = get_correctness(new_sample, constraints_funcs)
+#            correctness_history.append(current_correctness)
+#    
+#    print('Sampling completed. The final beta {} is achieved.'.format(be))
+##    if track_correctness:
+##        return samples, 
+#    return samples, correctness_history
+#    
