@@ -37,6 +37,7 @@ class Constraint():
         """
         with open(fname, "r") as f:
             lines = f.readlines()
+            
         # Parse the dimension from the first line
         self.n_dim = int(lines[0])
         # Parse the example from the second line
@@ -48,13 +49,14 @@ class Constraint():
         self.functions = []
         self.exprs_string = ""
         self.exprs_list = []
+
         
         for i in range(2, len(lines)):
-            # support comments in the first line
-            if lines[i][0] == "#":
-                continue
 
+            if lines[i][0]  == "#":
+                continue
             self.exprs.append(compile(lines[i], "<string>", "eval"))
+#            self.exprs.append(compile(lines[i],'<string>', 'eval'))
 #            self.exprs_algebraic.append(compile(lines[i].split(">=")[0].strip(),"<string>", "eval"))
             self.functions.append( 
                     (lambda i:
@@ -68,15 +70,12 @@ class Constraint():
         
         #reassign self.functions to those that are non-trivial
         self.functions = []
-        for line in self.exprs_list:
+        for line in self.exprs_list:                
             self.functions.append(
                     (lambda line:
                         lambda x: eval(line.split(">=")[0].strip())
                         )(line)
                                   )
-                    
-            
-        
         return
 
 

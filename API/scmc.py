@@ -8,6 +8,7 @@ Created on Fri Jul 12 12:56:28 2019
 import numpy as np
 from scipy.stats import norm
 from scipy import optimize
+from scipy.special import expit
 
 
 #file_path = '../example.txt'
@@ -23,7 +24,7 @@ def weights_initial(size_sample):
 
 
 #
-def ESS(be, t, samples , constraints_funcs , beta):
+def ESS(be, t, samples , constraints_funcs , beta, indicator_how):
     """
     return a function of ``be" that calculates Effective sample size(ESS) from
     unnomalized importnace w
@@ -38,11 +39,11 @@ def ESS(be, t, samples , constraints_funcs , beta):
     ESS :float
     """
     size_sample = len(samples[0])
-    w = np.exp([log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    w = np.exp([log_w( be, t, n, samples , constraints_funcs , beta, indicator_how) for n in range(size_sample) ])
     ess =np.sum(w)**2/np.sum(w**2)
     return ess
 
-def ESS_p(be, t, samples , constraints_funcs , beta):
+def ESS_p(be, t, samples , constraints_funcs , beta, indicator_how):
     """
     first derivative of ESS(be)
     
@@ -56,8 +57,8 @@ def ESS_p(be, t, samples , constraints_funcs , beta):
     ESS :float
     """
     size_sample = len(samples[0])
-    w = np.exp([log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
-    w_p = np.exp([log_w_p( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    w = np.exp([log_w( be, t, n, samples , constraints_funcs , beta, indicator_how) for n in range(size_sample) ])
+    w_p = np.exp([log_w_p( be, t, n, samples , constraints_funcs , beta, indicator_how) for n in range(size_sample) ])
     
     sum_w = np.sum(w)
     sum_ww = np.sum(w**2)
@@ -128,16 +129,16 @@ def find_root( objective, x0,fprime, bracket , geomspace, t):
 #        res = newton(objective, x0, fprime)
 #        return res
 
-def optimal_next_beta( t, samples , constraints_funcs , beta, beta_max, a=5, n_partition=15):
+def optimal_next_beta( t, samples , constraints_funcs , beta, beta_max,indicator_how, a=5, n_partition=15):
     """
     return optimize.root_scalar(ESS(importances,beta), bracket = ,method=')
     """
     size_sample = len(samples[0])
     
     def objective(be):
-        return ESS(be, t, samples , constraints_funcs , beta)- size_sample/2
+        return ESS(be, t, samples , constraints_funcs , beta, indicator_how)- size_sample/2
     def fprime(be):
-        return ESS_p(be, t, samples , constraints_funcs , beta)
+        return ESS_p(be, t, samples , constraints_funcs , beta, indicator_how)
     
     res = find_root(objective,
                     x0 =beta[t-1],
@@ -191,10 +192,17 @@ def beta_poly(t, seq_size, p, beta_max):
     beta_max: the traget inverse temperature beta in SMC
     """
     return beta_max * (t/seq_size)**p
- 
 
+def constraint_indicator_func(x, indicator_how):
+    if indicator_how == "Fermi_Dirac":
+        return np.log(expit(x))
+    elif indicator_how == "normal":
+        return norm.logcdf(x)
+    else:
+        return norm.logcdf(x)
+    
 #unnormalized importance weights
-def log_w( be, t, n, samples , constraints_funcs , beta):
+def log_w( be, t, n, samples , constraints_funcs , beta,  indicator_how):
     """
     a scaler function of ``be",
     evaluate the log of umnormalized importance weights w^t_n point-wise
@@ -221,8 +229,8 @@ def log_w( be, t, n, samples , constraints_funcs , beta):
         
         
     """
-    res = np.sum([norm.logcdf( be * g(samples[t-1][n])) for g in constraints_funcs] )
-    res -= np.sum( [norm.cdf( beta[t-1]* g( samples[t-1][n] ) ) for g in constraints_funcs])
+    res = np.sum([constraint_indicator_func( be * g(samples[t-1][n]), indicator_how) for g in constraints_funcs] )
+    res -= np.sum( [constraint_indicator_func( beta[t-1]* g( samples[t-1][n] ), indicator_how ) for g in constraints_funcs])
     return res
 
 def log_w_p( be, t, n, samples , constraints_funcs , beta):
@@ -245,7 +253,7 @@ def log_w_p( be, t, n, samples , constraints_funcs , beta):
 
     
     
-def importance_resampling(be , samples ,t, beta , constraints_funcs):
+def importance_resampling(be , samples ,t, beta , constraints_funcs, indicator_how):
     """
     
     Parameters
@@ -258,7 +266,7 @@ def importance_resampling(be , samples ,t, beta , constraints_funcs):
     size_sample = len(sample)
     W = weights_initial(size_sample)
     
-    imp_weights = np.array( [ log_w( be, t, n, samples , constraints_funcs , beta) for n in range(size_sample) ])
+    imp_weights = np.array( [ log_w( be, t, n, samples , constraints_funcs , beta, indicator_how) for n in range(size_sample) ])
     W = np.log(W) + imp_weights
 
     #normalize W
@@ -381,7 +389,10 @@ def get_count(sample, constraints_funcs):
     return count
 
 def upper_lower(n_dim, bounds):
-    """
+    """modify the upper and lower bounds of the sampling space if naive constraints are given
+    
+    Parameters
+    ----------
     n_dim: int,
     bounds: List,
         eg. [['+',0, -.5]] meaning x[0] has upper bound at .5
@@ -417,7 +428,8 @@ def initial_sampling(n_dim, size_sample, given_example, upper, lower):
 
 
 def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
-         p_beta=1,p_rw_step=1, verbose=1, track_correctness=True, given_example = None):
+         p_beta=1,p_rw_step=1, verbose=1, track_correctness=True, given_example = None,
+         indicator_how = "Fermi-Dirac"):
     
     t = 0
     beta = [0]
@@ -427,7 +439,7 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
     upper, lower = upper_lower(n_dim, bounds)
     samples.append(initial_sampling(n_dim, size_sample, given_example, upper, lower))
     
-    
+    #recor correctness
     sample= samples[0]
     correctness_history = []
     current_correctness = get_correctness(sample, constraints_funcs)
@@ -444,7 +456,7 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
     while beta[t] < beta_max:
 
         if track_correctness:
-            print('t = {:<8} ,beta={:>8} ,correctness={:.4f} '.format(t ,beta[t], correctness_history[t]))
+            print('t = {:<5} ,beta={:7.2f} ,correctness={:.3f} '.format(t ,beta[t], correctness_history[t]))
         else:
             print('t = {} ,current beta is {} '.format(t ,beta[t]))
             
@@ -459,7 +471,7 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
 #            
 #        else:
         #assign next beta
-        be = optimal_next_beta( t, samples , constraints_funcs , beta, beta_max)
+        be = optimal_next_beta( t, samples , constraints_funcs , beta, beta_max, indicator_how)
         #assign with linear
 #        be = beta_poly(t, seq_size, p_beta, beta_max )
         beta.append(be)
@@ -467,7 +479,7 @@ def scmc(n_dim, size_sample, constraints_funcs, beta_max, bounds,
         #importance resampling
 
         
-        resample = importance_resampling(be , samples ,t, beta , constraints_funcs)
+        resample = importance_resampling(be , samples ,t, beta , constraints_funcs,indicator_how)
         
         #Random Walk using Markov Chain kernel
         new_sample = Metropolis(be, t, resample, proposal ,constraints_funcs ,p_rw_step,upper, lower)
